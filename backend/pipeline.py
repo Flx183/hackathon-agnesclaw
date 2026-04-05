@@ -26,20 +26,45 @@ def _is_mock_mode() -> bool:
     return not bool(os.environ.get("OPENCLAW_API_KEY", "").strip())
 
 
-def _strip_fences(text: str) -> str:
-    """Remove markdown code fences from LLM output."""
-    text = text.strip()
-    text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'\s*```$', '', text)
-    return text.strip()
-
-
 def _safe_json(text: str, default):
-    """Parse JSON robustly, returning default on failure."""
-    try:
-        return json.loads(_strip_fences(text))
-    except Exception:
+    """
+    Robustly extract JSON from LLM output using multiple strategies.
+
+    Handles all of these real Agnes response formats:
+      - Clean JSON                          {"key": ...}
+      - Code-fenced anywhere in prose       ```json\n{...}\n```
+      - JSON buried after introductory text Sure! Here is the result:\n{...}
+      - Trailing commentary after JSON      {...}\n\nHope that helps!
+    """
+    if not text:
         return default
+
+    text = text.strip()
+
+    # Strategy 1: direct parse (ideal case)
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+
+    # Strategy 2: extract from code fence anywhere in the response
+    fence = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?```', text, re.IGNORECASE)
+    if fence:
+        try:
+            return json.loads(fence.group(1).strip())
+        except Exception:
+            pass
+
+    # Strategy 3: find the outermost { ... } block (handles prose before/after)
+    start = text.find('{')
+    end   = text.rfind('}')
+    if start != -1 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except Exception:
+            pass
+
+    return default
 
 
 def _make_client() -> OpenAI:
@@ -51,7 +76,7 @@ def _make_client() -> OpenAI:
 
 def _call_llm(client: OpenAI, system: str, user: str) -> str:
     """Call the OpenClaw/Agnes API and return the text content."""
-    model = os.environ.get("OPENCLAW_MODEL", "agnes-1.5-pro")
+    model = os.environ.get("OPENCLAW_MODEL", "sapiens-ai/agnes-1.5-pro")
     response = client.chat.completions.create(
         model=model,
         max_tokens=2048,
@@ -170,6 +195,263 @@ def _detect_contradictions(
         "overall_alignment": "aligned",
         "alignment_summary": "No document sources provided — analysis based on chat only.",
     })
+
+
+# ---------------------------------------------------------------------------
+# Bug 1 fix: heuristic fallback when LLM normalization returns bad/empty JSON
+# ---------------------------------------------------------------------------
+
+_UNCERTAINTY   = {"i think", "maybe", "probably", "not sure", "idk", "i see first",
+                  "ok i see", "see first", "i guess", "perhaps", "prob"}
+_BLOCKER       = {"haven", "haven't", "waiting", "can't", "cannot", "stuck",
+                  "blocked", "need", "need first", "not sent", "haven send"}
+_OWNERSHIP     = {"i thought", "i tot", "who is", "who's doing", "someone should",
+                  "u doing", "you doing", "i thought u", "tot u"}
+_WEAK_COMMIT   = {"see first", "ok i see", "maybe later", "i try", "will see",
+                  "prob", "probably", "idk", "later"}
+_TASK_WORDS    = {"do", "doing", "done", "finish", "complete", "send", "compile",
+                  "slides", "report", "write", "prepare", "submit", "survey", "results"}
+_DEADLINE_WORDS = {"tmr", "tomorrow", "tonight", "today", "deadline", "by when",
+                   "asap", "settle", "due"}
+_DEP_WORDS     = {"need", "waiting", "first", "before", "after", "results", "then",
+                  "once", "until"}
+_SINGLISH      = {"lah", "leh", "lor", "ah", "bro", "sia", "leh", "hor"}
+
+
+def _build_fallback_normalized(parsed_messages: list, members: list) -> list:
+    """
+    Bug 1 fix: keyword-heuristic normalization when the LLM fails.
+    Produces usable normalized messages so extraction has real input.
+    Singlish patterns are explicitly covered.
+    """
+    member_lower = {m.lower() for m in members}
+    result = []
+    for msg in parsed_messages:
+        raw = msg["raw_text"]
+        t = raw.lower()
+        words = set(t.split())
+
+        has_uncertainty   = bool(any(p in t for p in _UNCERTAINTY) or words & _SINGLISH)
+        has_blocker       = bool(any(p in t for p in _BLOCKER))
+        has_ownership     = bool(any(p in t for p in _OWNERSHIP))
+        has_task          = bool(words & _TASK_WORDS)
+        has_deadline      = bool(any(p in t for p in _DEADLINE_WORDS))
+        has_dependency    = bool(any(p in t for p in _DEP_WORDS))
+        has_commitment    = bool(any(w in t for w in ("i will", "i'll", "will do",
+                                                       "i confirm", "confirmed", "done")))
+        has_owner_ref     = bool(has_ownership or words & member_lower)
+        has_weak_commit   = bool(any(p in t for p in _WEAK_COMMIT))
+
+        # Build a plain-English normalized version
+        parts = []
+        if has_blocker:
+            parts.append("The speaker is blocked or waiting on something.")
+        if has_ownership:
+            parts.append("There is confusion about who owns a task.")
+        if has_weak_commit:
+            parts.append("The speaker gives a weak, non-committal response.")
+        if has_task and not parts:
+            parts.append("The speaker references a task.")
+        if has_dependency:
+            parts.append("Progress depends on another person or deliverable.")
+        if not parts:
+            parts.append(f"Informal message: \"{raw}\"")
+
+        result.append({
+            "speaker": msg["speaker"],
+            "raw_text": raw,
+            "normalized_text": " ".join(parts),
+            "confidence": "low",
+            "signals": {
+                "contains_task_reference":     has_task,
+                "contains_owner_reference":    has_owner_ref,
+                "contains_deadline_reference": has_deadline,
+                "contains_blocker_reference":  has_blocker,
+                "contains_uncertainty":        has_uncertainty or has_weak_commit,
+                "contains_commitment":         has_commitment,
+                "contains_dependency":         has_dependency,
+            },
+        })
+    return result
+
+
+def _build_heuristic_flags(normalized_messages: list) -> list:
+    """
+    Bug 2 fix: derive communication_flags from signal counts when extraction
+    returns empty — so the scorer still has something meaningful to work with.
+    """
+    flags = []
+    n = len(normalized_messages)
+    if n == 0:
+        return flags
+
+    uncertainty_count = sum(1 for m in normalized_messages
+                            if m.get("signals", {}).get("contains_uncertainty"))
+    blocker_count     = sum(1 for m in normalized_messages
+                            if m.get("signals", {}).get("contains_blocker_reference"))
+    owner_count       = sum(1 for m in normalized_messages
+                            if m.get("signals", {}).get("contains_owner_reference"))
+    commit_count      = sum(1 for m in normalized_messages
+                            if m.get("signals", {}).get("contains_commitment"))
+    dep_count         = sum(1 for m in normalized_messages
+                            if m.get("signals", {}).get("contains_dependency"))
+
+    if uncertainty_count >= max(1, n // 2):
+        flags.append({
+            "flag": "weak_commitment",
+            "description": f"{uncertainty_count} of {n} messages contain uncertain or non-committal language.",
+            "involved_members": [],
+        })
+    if owner_count > 0 and commit_count == 0:
+        flags.append({
+            "flag": "ownership_confusion",
+            "description": "Team members are referenced but no one has explicitly confirmed ownership of any task.",
+            "involved_members": [],
+        })
+    if blocker_count > 0:
+        flags.append({
+            "flag": "dependency_risk",
+            "description": f"{blocker_count} message(s) indicate blocked progress or unmet dependencies.",
+            "involved_members": [],
+        })
+    if dep_count > 0:
+        flags.append({
+            "flag": "dependency_risk",
+            "description": "Messages reference waiting on others or sequential dependencies.",
+            "involved_members": [],
+        })
+    return flags
+
+
+def _heuristic_extract(parsed_messages: list, members: list) -> dict:
+    """
+    Local keyword-based extraction fallback used when Agnes fails completely.
+    Produces real tasks, blockers, decisions, and communication_flags so
+    the UI tabs are never empty after a total LLM failure.
+    """
+    tasks: list = []
+    blockers: list = []
+    decisions: list = []
+    task_counter = 0
+
+    # Commitment → task: speaker declares they will do something
+    _COMMIT_PATS = [
+        r"\bi(?:'ll| will| am| 'm)\s+(?:do|doing|compil|send|writ|prepar|submit|finish|handl|work)",
+        r"\bwill\s+(?:do|handle|send|finish|prepare|compile|write|submit)\b",
+        r"\bi(?:'ve| have)\s+(?:done|finished|sent|submitted|completed)\b",
+    ]
+    # Blocker: something is waiting, can't proceed, or hasn't been done
+    _BLOCK_PATS = [
+        r"\bhaven[''']?t?\s+(?:send|sent|done|finish|submit|upload)",
+        r"\bwaiting\s+(?:for|on)\b",
+        r"\bcan[''']?t\s+(?:do|continue|proceed|finish|start)\b",
+        r"\bnot\s+(?:yet|done|sent|received)\b",
+        r"\bblocked\b",
+        r"\bstuck\b",
+        r"\bneed\s+\w+\s+(?:first|before)\b",
+    ]
+    # Unresolved decision: ownership confusion or scope question
+    _DECISION_PATS = [
+        r"\bi\s+(?:thought|tot)\s+(?:u|you|\w+)\s+(?:was|were|is|will|would)\s+(?:do|doing|handl|compil)",
+        r"\bwho[''']?s?\s+(?:doing|handling|responsible\s+for|in\s+charge)",
+        r"\bwho\s+(?:is|will|should)\s+(?:do|send|compil|write|prepar|submit)",
+        r"\bsomeone\s+(?:should|need|must)\s+(?:do|handle|take\s+care)",
+        r"\bwhat\s+are\s+we\s+(?:using|doing|going\s+with)\b",
+    ]
+
+    seen_tasks: set = set()
+    seen_blockers: set = set()
+    seen_decisions: set = set()
+
+    for msg in parsed_messages:
+        raw = msg["raw_text"]
+        speaker = msg["speaker"]
+        t = raw.lower()
+
+        # --- Task extraction ---
+        for pat in _COMMIT_PATS:
+            m = re.search(pat, t)
+            if m:
+                rest = t[m.end():].strip().split()
+                task_frag = " ".join(rest[:4]).strip(" .,!?")
+                if not task_frag or task_frag in {"a", "the", "it", "ok", "sure"}:
+                    task_frag = "task"
+                task_name = task_frag.capitalize()
+                key = f"{speaker.lower()}:{task_name.lower()}"
+                if key not in seen_tasks:
+                    seen_tasks.add(key)
+                    task_counter += 1
+                    tasks.append({
+                        "task_id": f"h{task_counter}",
+                        "task_name": task_name,
+                        "owner": speaker,
+                        "owner_status": "tentative",
+                        "deadline": None,
+                        "deadline_status": "unknown",
+                        "status": "in_progress",
+                        "depends_on": [],
+                        "evidence": [f"{speaker}: {raw}"],
+                    })
+                break
+
+        # --- Blocker extraction ---
+        for pat in _BLOCK_PATS:
+            if re.search(pat, t):
+                key = f"{speaker.lower()}:{t[:30]}"
+                if key not in seen_blockers:
+                    seen_blockers.add(key)
+                    blockers.append({
+                        "blocker": f"Blocked/waiting: \"{raw}\"",
+                        "blocking_task": None,
+                        "responsible_party": speaker,
+                        "severity": "medium",
+                        "evidence": [f"{speaker}: {raw}"],
+                    })
+                break
+
+        # --- Unresolved decision / ownership confusion ---
+        for pat in _DECISION_PATS:
+            if re.search(pat, t):
+                key = f"{speaker.lower()}:{t[:30]}"
+                if key not in seen_decisions:
+                    seen_decisions.add(key)
+                    decisions.append({
+                        "decision": f"Unresolved: \"{raw}\"",
+                        "status": "unresolved",
+                        "evidence": [f"{speaker}: {raw}"],
+                    })
+                break
+
+    # If blockers were found but no tasks, synthesize blocked tasks from blockers
+    if blockers and not tasks:
+        _TASK_NOUNS = ["slides", "report", "survey", "write", "compile", "send",
+                       "submit", "prepare", "finish", "design", "code"]
+        for i, b in enumerate(blockers[:3], 1):
+            evid = (b["evidence"][0] if b["evidence"] else "").lower()
+            noun = next((tw for tw in _TASK_NOUNS if tw in evid), "task")
+            tasks.append({
+                "task_id": f"h{i}",
+                "task_name": noun.capitalize() + " (blocked)",
+                "owner": None,
+                "owner_status": "unknown",
+                "deadline": None,
+                "deadline_status": "unknown",
+                "status": "blocked",
+                "depends_on": [],
+                "evidence": b["evidence"],
+            })
+
+    # Build communication flags via existing heuristics
+    norm = _build_fallback_normalized(parsed_messages, members)
+    flags = _build_heuristic_flags(norm)
+
+    return {
+        "tasks": tasks,
+        "blockers": blockers,
+        "decisions": decisions,
+        "questions": [d["decision"] for d in decisions[:3]],
+        "communication_flags": flags,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -329,21 +611,46 @@ async def analyze_project(
     norm_result = _safe_json(norm_raw, {"normalized_messages": []})
     normalized_messages = norm_result.get("normalized_messages", [])
 
+    # Bug 1 fix: if LLM returned bad/empty JSON, use heuristic fallback
+    if not normalized_messages and parsed_messages:
+        normalized_messages = _build_fallback_normalized(parsed_messages, members)
+
     # 4. Extraction
     ext_user = json.dumps({"normalized_messages": normalized_messages})
     ext_raw = _call_llm(client, EXTRACTION_PROMPT, ext_user)
-    extracted = _safe_json(ext_raw, {
-        "tasks": [],
-        "decisions": [],
-        "questions": [],
-        "blockers": [],
-        "communication_flags": [],
-    })
+    extracted = _safe_json(ext_raw, None)
 
-    tasks = extracted.get("tasks", [])
-    blockers = extracted.get("blockers", [])
-    decisions = extracted.get("decisions", [])
+    # Bug 2 fix: retry once with an explicit nudge if extraction returned empty
+    extraction_empty = (
+        not extracted
+        or (not extracted.get("tasks") and not extracted.get("blockers")
+            and not extracted.get("decisions"))
+    )
+    if extraction_empty:
+        retry_user = (
+            ext_user.rstrip("}")
+            + ', "nudge": "The chat is informal or uses slang. Extract ALL tasks, blockers, '
+            'decisions, and communication flags even if ownership or deadlines are only implied. '
+            'Do not return empty arrays if the conversation contains coordination activity."}'
+        )
+        ext_raw2 = _call_llm(client, EXTRACTION_PROMPT, retry_user)
+        extracted = _safe_json(ext_raw2, {
+            "tasks": [], "decisions": [], "questions": [],
+            "blockers": [], "communication_flags": [],
+        })
+
+    tasks              = extracted.get("tasks", [])
+    blockers           = extracted.get("blockers", [])
+    decisions          = extracted.get("decisions", [])
     communication_flags = extracted.get("communication_flags", [])
+
+    # Bug 2 fix (cont): if still empty, use full heuristic extraction as final fallback
+    if not tasks and not blockers and not decisions and not communication_flags:
+        heuristic = _heuristic_extract(parsed_messages, members)
+        tasks               = heuristic["tasks"]
+        blockers            = heuristic["blockers"]
+        decisions           = heuristic["decisions"]
+        communication_flags = heuristic["communication_flags"]
 
     # 5. Process uploaded sources (if any)
     processed_sources = []
@@ -381,6 +688,15 @@ async def analyze_project(
 
     # 7. Rule-based risk score
     rule_score = compute_risk(tasks, blockers, decisions, communication_flags, days_to_deadline)
+
+    # Bug 3 fix: a chat with messages but zero extracted structure is itself a red flag.
+    # Enforce a minimum score floor so the scorer doesn't silently report "healthy".
+    if not tasks and not blockers and len(parsed_messages) >= 3:
+        if days_to_deadline <= 5:
+            rule_score = max(rule_score, 9)   # floor at "high"
+        elif days_to_deadline <= 7:
+            rule_score = max(rule_score, 5)   # floor at "moderate"
+
     rule_level = risk_band(rule_score)
 
     # 8. Deadlock analysis — include contradiction context if available
@@ -422,6 +738,10 @@ async def analyze_project(
     followup_raw = _call_llm(client, FOLLOWUP_PROMPT, followup_user)
     followup_result = _safe_json(followup_raw, {"message": "Could not generate follow-up message."})
 
+    # Bug 4 fix: the rule engine is the floor — the LLM can only raise the score, never lower it.
+    final_score = max(rule_score, deadlock_result.get("risk_score", 0))
+    final_level = risk_band(final_score)
+
     # 10. Return combined result
     return {
         "project_name": project_name,
@@ -436,8 +756,8 @@ async def analyze_project(
         "communication_flags": communication_flags,
         "rule_based_score": rule_score,
         "rule_based_level": rule_level,
-        "risk_score": deadlock_result.get("risk_score", rule_score),
-        "risk_level": deadlock_result.get("risk_level", rule_level),
+        "risk_score": final_score,
+        "risk_level": final_level,
         "status_summary": deadlock_result.get("status_summary", ""),
         "top_causes": deadlock_result.get("top_causes", []),
         "clarifications_needed": deadlock_result.get("clarifications_needed", []),
