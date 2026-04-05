@@ -45,7 +45,7 @@ def _safe_json(text: str, default):
 def _make_client() -> OpenAI:
     return OpenAI(
         api_key=os.environ.get("OPENCLAW_API_KEY", "mock"),
-        base_url=os.environ.get("OPENCLAW_BASE_URL", "http://localhost:18789/v1"),
+        base_url=os.environ.get("OPENCLAW_BASE_URL", "https://zenmux.ai/api/v1"),
     )
 
 
