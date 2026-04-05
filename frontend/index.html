@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Pulse</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #F8F9FA; color: #111827; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+
+    .card { background: white; border: 1px solid #E5E7EB; border-radius: 12px; }
+
+    .field {
+      width: 100%; padding: 10px 14px;
+      background: #F9FAFB; border: 1px solid #E5E7EB;
+      border-radius: 8px; font-size: 14px; color: #111827;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field:focus { outline: none; border-color: #7C3AED; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+    .field::placeholder { color: #9CA3AF; }
+
+    /* ---- Risk level theming (scoped inside #risk-card) ---- */
+    #risk-card.lvl-low    { border-color: #22C55E; }
+    #risk-card.lvl-moderate { border-color: #F59E0B; }
+    #risk-card.lvl-high   { border-color: #EF4444; }
+    #risk-card.lvl-deadlocked { border-color: #DC2626; }
+
+    .lvl-low    .rc-icon, .lvl-low    .rc-score { color: #16A34A; }
+    .lvl-moderate .rc-icon, .lvl-moderate .rc-score { color: #D97706; }
+    .lvl-high   .rc-icon, .lvl-high   .rc-score { color: #DC2626; }
+    .lvl-deadlocked .rc-icon, .lvl-deadlocked .rc-score { color: #DC2626; }
+
+    .lvl-low    .rc-badge { background: #DCFCE7; color: #166534; }
+    .lvl-moderate .rc-badge { background: #FEF3C7; color: #92400E; }
+    .lvl-high   .rc-badge { background: #FEE2E2; color: #991B1B; }
+    .lvl-deadlocked .rc-badge { background: #1F2937; color: #F9FAFB; }
+
+    .lvl-low    .rc-bar { background: #22C55E; }
+    .lvl-moderate .rc-bar { background: #F59E0B; }
+    .lvl-high   .rc-bar { background: #EF4444; }
+    .lvl-deadlocked .rc-bar { background: #DC2626; }
+
+    .lvl-low    .rc-text { color: #166534; }
+    .lvl-moderate .rc-text { color: #92400E; }
+    .lvl-high   .rc-text { color: #991B1B; }
+    .lvl-deadlocked .rc-text { color: #DC2626; }
+
+    /* ---- Tabs ---- */
+    .tab-bar { background: #F3F4F6; padding: 4px; border-radius: 10px; display: flex; gap: 4px; }
+    .tab { flex: 1; padding: 8px 4px; border-radius: 7px; font-size: 13px; cursor: pointer;
+           border: 1px solid transparent; text-align: center; transition: all 0.15s; color: #6B7280; background: transparent; }
+    .tab.active { background: white; border-color: #E5E7EB; color: #111827; font-weight: 500;
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .tab:not(.active):hover { background: #E9EAEC; }
+
+    /* ---- Status badges ---- */
+    .sbadge { display: inline-block; padding: 2px 9px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+    .sbadge-blocked     { background: #FEE2E2; color: #991B1B; }
+    .sbadge-unclear     { background: #FEF3C7; color: #92400E; }
+    .sbadge-done        { background: #DCFCE7; color: #166534; }
+    .sbadge-in_progress { background: #DBEAFE; color: #1E40AF; }
+    .sbadge-not_started { background: #F3F4F6; color: #6B7280; }
+
+    /* ---- Owner certainty dots ---- */
+    .dot-confirmed { color: #22C55E; }
+    .dot-tentative { color: #F59E0B; }
+    .dot-unknown   { color: #EF4444; }
+
+    /* ---- Chip ---- */
+    .chip { display: inline-block; padding: 2px 10px; border-radius: 9999px;
+            font-size: 12px; background: #F3F4F6; color: #374151;
+            border: 1px solid #E5E7EB; margin: 2px; }
+
+    /* ---- Spinner ---- */
+    .spinner { border: 3px solid #E5E7EB; border-top-color: #7C3AED;
+               border-radius: 50%; width: 36px; height: 36px;
+               animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Demo buttons ---- */
+    .demo-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid #D1D5DB;
+                font-size: 13px; color: #374151; background: white; cursor: pointer;
+                transition: all 0.15s; }
+    .demo-btn:hover { background: #F3F4F6; border-color: #9CA3AF; }
+
+    /* ---- Action item ---- */
+    .action-num { width: 30px; height: 30px; border-radius: 50%; background: #111827;
+                  color: white; font-size: 13px; font-weight: 700;
+                  display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+    /* ---- Message box ---- */
+    .msg-box { background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px;
+               padding: 20px 20px 20px 20px; font-family: 'Courier New', monospace;
+               font-size: 13.5px; line-height: 1.75; color: #1F2937;
+               min-height: 160px; white-space: pre-wrap; word-break: break-word; }
+    .msg-box[contenteditable]:focus { outline: none; border-color: #7C3AED; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- ===== HEADER ===== -->
+  <header class="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+    <div class="flex items-center gap-3 cursor-pointer" onclick="showInput()">
+      <div class="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-purple-600 leading-none">Project Pulse</h1>
+        <p class="text-xs text-gray-400 mt-0.5">AI-powered coordination failure detector</p>
+      </div>
+    </div>
+    <button id="new-analysis-btn" onclick="showInput()"
+      class="hidden items-center gap-1.5 text-sm px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-gray-700">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+      New Analysis
+    </button>
+  </header>
+
+  <!-- ===== VIEW: INPUT ===== -->
+  <div id="input-view">
+    <main class="max-w-3xl mx-auto px-4 py-12 space-y-8">
+
+      <!-- Hero -->
+      <div class="text-center space-y-3 pb-2">
+        <h2 class="text-4xl font-bold text-gray-900 leading-tight">
+          Detect coordination failure<br>before it's too late
+        </h2>
+        <p class="text-gray-500 text-base max-w-xl mx-auto leading-relaxed">
+          Paste your messy group chat or meeting notes. Get instant risk assessment, extracted tasks
+          with certainty levels, and a ready-to-send follow-up message.
+        </p>
+      </div>
+
+      <!-- Input card -->
+      <div class="card p-6 space-y-5 shadow-sm">
+        <div>
+          <h3 class="text-base font-semibold text-gray-900">Project Analysis Input</h3>
+          <p class="text-sm text-gray-500 mt-0.5">Enter your project details and paste your group chat or meeting notes below</p>
+        </div>
+
+        <!-- Demo buttons -->
+        <div class="flex gap-2 flex-wrap">
+          <button class="demo-btn" onclick="loadDemo('healthy')">Load Healthy Example</button>
+          <button class="demo-btn" onclick="loadDemo('at-risk')">Load At-Risk Example</button>
+          <button class="demo-btn" onclick="loadDemo('deadlocked')">Load Deadlocked Example</button>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Project Name</label>
+          <input id="project-name" type="text" placeholder="e.g., CS301 Final Project" class="field" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Deadline</label>
+          <input id="deadline" type="date" class="field" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Teammate Names</label>
+          <input id="members" type="text" placeholder="e.g., Alice, Bob, Charlie (comma-separated)" class="field" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Group Chat or Meeting Notes</label>
+          <textarea id="raw-chat" rows="8"
+            placeholder="Paste your messy group chat, Discord messages, or meeting notes here..."
+            class="field resize-y font-mono text-sm"></textarea>
+        </div>
+
+        <!-- File upload -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">
+            Project Resources <span class="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <p class="text-xs text-gray-500 mb-2">Upload assignment briefs, rubrics, slides, or notes. Pulse will cross-check the chat against these documents and flag contradictions.</p>
+
+          <div id="drop-zone"
+            class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition"
+            onclick="document.getElementById('file-input').click()"
+            ondragover="event.preventDefault();this.classList.add('border-purple-400','bg-purple-50')"
+            ondragleave="this.classList.remove('border-purple-400','bg-purple-50')"
+            ondrop="handleDrop(event)">
+            <div class="text-2xl mb-1">📎</div>
+            <p class="text-sm text-gray-500">Click or drag files here</p>
+            <p class="text-xs text-gray-400 mt-0.5">PDF, DOCX, PPTX, TXT, images (JPG, PNG)</p>
+          </div>
+          <input id="file-input" type="file" class="hidden" multiple
+            accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md,.jpg,.jpeg,.png,.gif,.webp"
+            onchange="handleFiles(this.files)" />
+
+          <!-- Uploaded files list -->
+          <div id="sources-list" class="mt-3 space-y-2"></div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Preferred Message Tone</label>
+          <select id="tone" class="field">
+            <option value="casual">Friendly &amp; Casual</option>
+            <option value="diplomatic" selected>Diplomatic</option>
+            <option value="direct">Direct &amp; Assertive</option>
+            <option value="formal">Formal &amp; Professional</option>
+          </select>
+        </div>
+
+        <div id="error-msg" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3"></div>
+
+        <button id="analyze-btn" onclick="analyze()"
+          class="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold transition">
+          Analyze Project
+        </button>
+      </div>
+
+      <!-- Feature cards -->
+      <div class="grid grid-cols-3 gap-4">
+        <div class="card p-5 space-y-3 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-900 text-sm">Detect Ambiguity</p>
+            <p class="text-xs text-gray-500 mt-1 leading-relaxed">Spots weak language like "maybe", "later", and "I thought you were doing it"</p>
+          </div>
+        </div>
+        <div class="card p-5 space-y-3 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-900 text-sm">Extract Structure</p>
+            <p class="text-xs text-gray-500 mt-1 leading-relaxed">Pulls out tasks, owners, deadlines, blockers, and unresolved decisions</p>
+          </div>
+        </div>
+        <div class="card p-5 space-y-3 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-900 text-sm">Generate Message</p>
+            <p class="text-xs text-gray-500 mt-1 leading-relaxed">Creates a ready-to-send follow-up that addresses the real coordination issues</p>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ===== VIEW: LOADING ===== -->
+  <div id="loading-view" class="hidden">
+    <div class="flex flex-col items-center justify-center py-40 gap-4">
+      <div class="spinner"></div>
+      <p id="loading-text" class="text-sm text-gray-500">Analyzing your project...</p>
+    </div>
+  </div>
+
+  <!-- ===== VIEW: RESULTS ===== -->
+  <div id="results-view" class="hidden">
+    <main class="max-w-3xl mx-auto px-4 py-8 space-y-6">
+
+      <!-- Risk Assessment Card -->
+      <div id="risk-card" class="card p-6 border-2 space-y-5">
+
+        <div class="flex items-start justify-between">
+          <div class="flex items-start gap-3">
+            <div id="rc-icon" class="rc-icon mt-0.5"></div>
+            <div>
+              <h3 class="font-bold text-lg rc-text">Risk Assessment</h3>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm text-gray-500">Level:</span>
+                <span id="rc-badge" class="rc-badge text-xs font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wide"></span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div id="rc-score" class="rc-score text-4xl font-bold"></div>
+            <div class="text-xs text-gray-400 mt-0.5">Risk Score</div>
+          </div>
+        </div>
+
+        <!-- Health bar -->
+        <div>
+          <div class="flex justify-between text-sm mb-1.5">
+            <span class="font-medium text-gray-700">Coordination Health</span>
+            <span id="rc-bar-label" class="text-gray-500 text-xs"></span>
+          </div>
+          <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+            <div id="rc-bar" class="rc-bar h-full rounded-full transition-all duration-700" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- Status summary -->
+        <div>
+          <p class="text-sm font-semibold rc-text mb-1">Status Summary</p>
+          <p id="rc-summary" class="text-sm rc-text leading-relaxed"></p>
+        </div>
+
+        <!-- Detected coordination signals -->
+        <div id="signals-section">
+          <p class="text-sm font-semibold rc-text mb-3">Detected Coordination Signals</p>
+          <div id="signals-list" class="space-y-3"></div>
+        </div>
+
+      </div>
+
+      <!-- Document Contradiction Analysis (shown only when sources uploaded) -->
+      <div id="contradiction-section" class="hidden card p-6 space-y-4 shadow-sm border-l-4 border-orange-400">
+        <div class="flex items-start gap-2.5">
+          <span class="text-xl">📄</span>
+          <div>
+            <h3 class="font-semibold text-gray-900">Document vs Chat Analysis</h3>
+            <p id="alignment-summary" class="text-sm text-gray-500 mt-0.5"></p>
+          </div>
+          <span id="alignment-badge" class="ml-auto text-xs font-bold px-2.5 py-1 rounded-full shrink-0"></span>
+        </div>
+
+        <!-- Sources processed -->
+        <div id="sources-processed" class="space-y-1">
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Sources analysed</p>
+          <div id="sources-processed-list" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- Contradictions -->
+        <div id="contradictions-block">
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Contradictions</p>
+          <div id="contradictions-list" class="space-y-2"></div>
+          <p id="no-contradictions" class="hidden text-sm text-gray-400">No contradictions detected.</p>
+        </div>
+
+        <!-- Requirement gaps -->
+        <div id="gaps-block">
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Requirement Gaps</p>
+          <div id="gaps-list" class="space-y-2"></div>
+          <p id="no-gaps" class="hidden text-sm text-gray-400">No requirement gaps detected.</p>
+        </div>
+
+        <!-- Source conflicts -->
+        <div id="src-conflicts-block" class="hidden">
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Source Conflicts</p>
+          <div id="src-conflicts-list" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- Project Analysis (tabs) -->
+      <div class="card p-6 space-y-4 shadow-sm">
+        <div>
+          <h3 class="text-base font-semibold text-gray-900">Project Analysis</h3>
+          <p class="text-sm text-gray-500 mt-0.5">Extracted tasks, blockers, decisions, and clarification needs</p>
+        </div>
+
+        <div class="tab-bar">
+          <button class="tab active" data-tab="tasks" onclick="switchTab('tasks',this)">
+            👤 Tasks (<span id="cnt-tasks">0</span>)
+          </button>
+          <button class="tab" data-tab="blockers" onclick="switchTab('blockers',this)">
+            🔒 Blockers (<span id="cnt-blockers">0</span>)
+          </button>
+          <button class="tab" data-tab="decisions" onclick="switchTab('decisions',this)">
+            ⚠ Decisions (<span id="cnt-decisions">0</span>)
+          </button>
+          <button class="tab" data-tab="clarify" onclick="switchTab('clarify',this)">
+            💬 Clarify (<span id="cnt-clarify">0</span>)
+          </button>
+        </div>
+
+        <!-- Tasks tab -->
+        <div id="tab-tasks">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs text-gray-500 border-b border-gray-100">
+                  <th class="pb-2.5 pr-4 font-medium">Task Description</th>
+                  <th class="pb-2.5 pr-4 font-medium">Owner</th>
+                  <th class="pb-2.5 pr-4 font-medium">Deadline</th>
+                  <th class="pb-2.5 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tasks-body" class="divide-y divide-gray-50"></tbody>
+            </table>
+          </div>
+          <p id="no-tasks" class="hidden text-sm text-gray-400 py-4">No tasks identified.</p>
+          <!-- Legend -->
+          <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <p class="text-xs font-medium text-gray-600 mb-2">Legend:</p>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2 text-xs text-gray-500">
+                <span class="dot-confirmed font-bold text-base leading-none">●</span> Certain ownership/deadline
+              </div>
+              <div class="flex items-center gap-2 text-xs text-gray-500">
+                <span class="dot-tentative font-bold text-base leading-none">●</span> Uncertain commitment ("maybe", "probably")
+              </div>
+              <div class="flex items-center gap-2 text-xs text-gray-500">
+                <span class="dot-unknown font-bold text-base leading-none">●</span> Ambiguous or missing ("I thought you were...")
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Blockers tab -->
+        <div id="tab-blockers" class="hidden space-y-3">
+          <p id="no-blockers" class="hidden text-sm text-gray-400 py-2">No blockers identified.</p>
+        </div>
+
+        <!-- Decisions tab -->
+        <div id="tab-decisions" class="hidden space-y-3">
+          <p id="no-decisions" class="hidden text-sm text-gray-400 py-2">No unresolved decisions.</p>
+        </div>
+
+        <!-- Clarify tab -->
+        <div id="tab-clarify" class="hidden space-y-2">
+          <p id="no-clarify" class="hidden text-sm text-gray-400 py-2">No clarifications needed.</p>
+        </div>
+      </div>
+
+      <!-- Top 3 Next Actions -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">⚡</span>
+          <div>
+            <h3 class="font-semibold text-gray-900">Top 3 Next Actions</h3>
+            <p class="text-sm text-gray-500">Prioritized steps to get your project back on track</p>
+          </div>
+        </div>
+        <div id="next-actions" class="space-y-2"></div>
+      </div>
+
+      <!-- Follow-up Message -->
+      <div class="card p-6 space-y-4 shadow-sm">
+        <div class="flex items-start gap-2.5">
+          <span class="text-lg">✨</span>
+          <div>
+            <h3 class="font-semibold text-gray-900">Ready-to-Send Follow-up Message</h3>
+            <p class="text-sm text-gray-500 mt-0.5">Copy and send this to your team to clarify next steps</p>
+          </div>
+        </div>
+
+        <div class="relative">
+          <div id="followup-message" class="msg-box" contenteditable="true"></div>
+          <button onclick="copyMessage()"
+            class="absolute top-3 right-3 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-gray-600 shadow-sm">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            Copy Message
+          </button>
+          <span id="copy-confirm" class="hidden absolute bottom-3 right-3 text-xs text-green-600 font-medium">Copied!</span>
+        </div>
+
+        <div class="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <span>💡</span>
+          <p class="text-xs text-yellow-800">
+            <strong>Pro tip:</strong> This message addresses the coordination issues detected in your chat. Feel free to personalize it before sending!
+          </p>
+        </div>
+
+        <div id="urgent-box" style="display:none"
+          class="items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <span>⚠️</span>
+          <p class="text-xs text-red-700">
+            <strong>Urgent:</strong> Your project is deadlocked. Consider scheduling a video call within 24 hours to resolve blocking decisions.
+          </p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    const API = 'http://localhost:8000';
+    let currentData = null;
+    let uploadedSources = [];   // array of source objects from /upload
+
+    // -------------------------------------------------------------------------
+    // File upload
+    // -------------------------------------------------------------------------
+    function handleDrop(event) {
+      event.preventDefault();
+      document.getElementById('drop-zone').classList.remove('border-purple-400','bg-purple-50');
+      handleFiles(event.dataTransfer.files);
+    }
+
+    async function handleFiles(files) {
+      for (const file of Array.from(files)) {
+        await uploadFile(file);
+      }
+    }
+
+    async function uploadFile(file) {
+      const sourceId = `src-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+
+      // Add placeholder row immediately
+      const list = document.getElementById('sources-list');
+      const row = document.createElement('div');
+      row.id = sourceId;
+      row.className = 'flex items-center gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50 text-sm';
+      row.innerHTML = `
+        <span class="text-lg">${fileIcon(file.name)}</span>
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-gray-800 truncate">${esc(file.name)}</p>
+          <p class="text-xs text-gray-400 uploading-status">Uploading…</p>
+        </div>
+        <select class="text-xs border border-gray-200 rounded px-2 py-1 bg-white reliability-select" data-id="${sourceId}">
+          <option value="official">Official (brief/rubric)</option>
+          <option value="reference">Reference</option>
+          <option value="notes">Notes</option>
+          <option value="auto" selected>Auto</option>
+        </select>
+        <button onclick="removeSource('${sourceId}')" class="text-gray-400 hover:text-red-500 text-lg leading-none">×</button>`;
+      list.appendChild(row);
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('label', 'auto');
+
+        const res = await fetch(`${API}/upload`, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+        const data = await res.json();
+        data._id = sourceId;
+
+        uploadedSources.push(data);
+        row.querySelector('.uploading-status').textContent =
+          `${data.file_type.toUpperCase()} · ${(data.char_count || 0).toLocaleString()} chars extracted`;
+
+        // Wire up reliability selector
+        row.querySelector('.reliability-select').addEventListener('change', function() {
+          const src = uploadedSources.find(s => s._id === sourceId);
+          if (src) {
+            src.reliability_label = this.value;
+            src.reliability_score = {official:10, reference:7, notes:4, auto:6}[this.value] || 6;
+          }
+        });
+
+      } catch (e) {
+        row.querySelector('.uploading-status').textContent = `Error: ${e.message}`;
+        row.querySelector('.uploading-status').classList.add('text-red-500');
+      }
+    }
+
+    function removeSource(id) {
+      uploadedSources = uploadedSources.filter(s => s._id !== id);
+      document.getElementById(id)?.remove();
+    }
+
+    function fileIcon(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      if (ext === 'pdf') return '📄';
+      if (['docx','doc'].includes(ext)) return '📝';
+      if (['pptx','ppt'].includes(ext)) return '📊';
+      if (['jpg','jpeg','png','gif','webp'].includes(ext)) return '🖼️';
+      return '📎';
+    }
+
+    // -------------------------------------------------------------------------
+    // Demo data
+    // -------------------------------------------------------------------------
+    const DEMOS = {
+      healthy: {
+        name: 'CS301 Database Project',
+        offset: 14,
+        members: 'Sarah, Mike, Tom, Lisa',
+        chat:
+`Sarah: I'll handle the ER diagram, should be done by Wednesday
+Mike: Database schema is done, already pushed to GitHub
+Tom: Starting the SQL queries tomorrow morning, done by Thursday
+Lisa: Backend API is 80% done, will finish Thursday evening
+Sarah: Great, I'll compile everything Friday and write the report
+Mike: I'll do a final review pass on Saturday morning`,
+      },
+      'at-risk': {
+        name: 'Marketing Campaign Analysis',
+        offset: 5,
+        members: 'Jordan, Taylor, Sam, Casey',
+        chat:
+`Jordan: Someone needs to do the data cleaning
+Taylor: I think Sam was doing that?
+Sam: Oh I thought Jordan was handling the data
+Casey: We need this done by Friday prob
+Jordan: I can maybe start tomorrow if no one else is
+Taylor: The presentation slides, did anyone start?
+Sam: Not sure who is doing the intro section
+Casey: ok i see first
+Jordan: we should probably decide on the angle soon`,
+      },
+      deadlocked: {
+        name: 'DSA2101 Group Project',
+        offset: 5,
+        members: 'Alex, Ben, Cara, Dion',
+        chat:
+`Alex: ben haven send survey leh i cant do slides
+Ben: i tot alex compiling
+Cara: tmr settle?
+Alex: need the results first bro
+Ben: ok i see first
+Dion: what are we even using for final angle`,
+      },
+    };
+
+    function loadDemo(type) {
+      const d = DEMOS[type];
+      document.getElementById('project-name').value = d.name;
+      const dl = new Date();
+      dl.setDate(dl.getDate() + d.offset);
+      document.getElementById('deadline').value = dl.toISOString().split('T')[0];
+      document.getElementById('members').value = d.members;
+      document.getElementById('raw-chat').value = d.chat;
+    }
+
+    // -------------------------------------------------------------------------
+    // View helpers
+    // -------------------------------------------------------------------------
+    function showInput() {
+      document.getElementById('input-view').classList.remove('hidden');
+      document.getElementById('loading-view').classList.add('hidden');
+      document.getElementById('results-view').classList.add('hidden');
+      document.getElementById('new-analysis-btn').style.display = 'none';
+    }
+
+    function showLoading(msg) {
+      document.getElementById('input-view').classList.add('hidden');
+      document.getElementById('loading-view').classList.remove('hidden');
+      document.getElementById('results-view').classList.add('hidden');
+      document.getElementById('loading-text').textContent = msg || 'Analyzing your project...';
+    }
+
+    function showResults() {
+      document.getElementById('input-view').classList.add('hidden');
+      document.getElementById('loading-view').classList.add('hidden');
+      document.getElementById('results-view').classList.remove('hidden');
+      document.getElementById('new-analysis-btn').style.display = 'flex';
+    }
+
+    // -------------------------------------------------------------------------
+    // Tabs
+    // -------------------------------------------------------------------------
+    function switchTab(name, btn) {
+      ['tasks', 'blockers', 'decisions', 'clarify'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== name);
+      });
+      document.querySelectorAll('.tab-bar .tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    // -------------------------------------------------------------------------
+    // Analyze
+    // -------------------------------------------------------------------------
+    async function analyze() {
+      const projectName = document.getElementById('project-name').value.trim();
+      const deadline    = document.getElementById('deadline').value;
+      const membersRaw  = document.getElementById('members').value.trim();
+      const rawChat     = document.getElementById('raw-chat').value.trim();
+      const tone        = document.getElementById('tone').value;
+
+      const errEl = document.getElementById('error-msg');
+      errEl.classList.add('hidden');
+
+      if (!projectName || !deadline || !membersRaw || !rawChat) {
+        errEl.textContent = 'Please fill in all fields before analyzing.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      const members = membersRaw.split(',').map(m => m.trim()).filter(Boolean);
+      showLoading('Analyzing your project...');
+
+      try {
+        const res = await fetch(`${API}/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_name: projectName, deadline, members, raw_chat: rawChat, tone,
+            sources: uploadedSources,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Server error: ${res.status}`);
+        }
+
+        const data = await res.json();
+        currentData = data;
+        renderResults(data);
+        showResults();
+
+      } catch (e) {
+        showInput();
+        errEl.textContent = `Error: ${e.message}`;
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Render
+    // -------------------------------------------------------------------------
+    function renderResults(data) {
+      renderRiskCard(data);
+      renderContradictions(data);
+      renderTabs(data);
+      renderActions(data);
+      renderFollowup(data);
+      switchTab('tasks', document.querySelector('.tab-bar .tab[data-tab="tasks"]'));
+    }
+
+    // -- Contradiction analysis --
+    function renderContradictions(data) {
+      const ca = data.contradiction_analysis || {};
+      const sources = data.sources || [];
+      const section = document.getElementById('contradiction-section');
+
+      if (!sources.length) {
+        section.classList.add('hidden');
+        return;
+      }
+      section.classList.remove('hidden');
+
+      // Alignment badge
+      const alignment = ca.overall_alignment || 'aligned';
+      const badgeEl = document.getElementById('alignment-badge');
+      const badgeStyles = {
+        aligned:    'bg-green-100 text-green-700',
+        at_risk:    'bg-yellow-100 text-yellow-700',
+        misaligned: 'bg-red-100 text-red-700',
+      };
+      badgeEl.className = `ml-auto text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${badgeStyles[alignment] || badgeStyles.aligned}`;
+      badgeEl.textContent = alignment.replace('_', ' ').toUpperCase();
+      document.getElementById('alignment-summary').textContent = ca.alignment_summary || '';
+
+      // Sources processed chips
+      const spList = document.getElementById('sources-processed-list');
+      spList.innerHTML = '';
+      sources.forEach(s => {
+        const relColors = {official:'bg-purple-100 text-purple-700', reference:'bg-blue-100 text-blue-700',
+                          notes:'bg-gray-100 text-gray-600', auto:'bg-gray-100 text-gray-600'};
+        const chip = document.createElement('span');
+        chip.className = `chip ${relColors[s.reliability_label] || 'bg-gray-100'} border-0`;
+        chip.innerHTML = `${fileIcon(s.filename)} ${esc(s.filename)} <span class="opacity-60">(${esc(s.reliability_label)})</span>`;
+        spList.appendChild(chip);
+      });
+
+      // Contradictions
+      const contradictions = ca.contradictions || [];
+      const cList = document.getElementById('contradictions-list');
+      cList.innerHTML = '';
+      document.getElementById('no-contradictions').classList.toggle('hidden', contradictions.length > 0);
+      const CSEV = {high:'bg-red-50 border-red-200', medium:'bg-yellow-50 border-yellow-200', low:'bg-gray-50 border-gray-200'};
+      const CSEV_BADGE = {high:'bg-red-100 text-red-700', medium:'bg-yellow-100 text-yellow-700', low:'bg-gray-100 text-gray-600'};
+      contradictions.forEach(c => {
+        const sev = c.severity || 'low';
+        const div = document.createElement('div');
+        div.className = `p-4 border rounded-xl space-y-2 ${CSEV[sev] || CSEV.low}`;
+        div.innerHTML = `
+          <div class="flex items-start gap-2">
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full shrink-0 mt-0.5 ${CSEV_BADGE[sev]}">${sev.toUpperCase()}</span>
+            <p class="text-sm font-medium text-gray-800">${esc(c.conflict_description)}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="p-2 bg-white rounded-lg border border-gray-200">
+              <p class="font-semibold text-gray-500 mb-0.5">Chat implies</p>
+              <p class="text-gray-700">${esc(c.chat_claim)}</p>
+            </div>
+            <div class="p-2 bg-white rounded-lg border border-gray-200">
+              <p class="font-semibold text-gray-500 mb-0.5">Document requires</p>
+              <p class="text-gray-700">${esc(c.document_requirement)}</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-1.5 text-xs text-gray-600">
+            <span class="text-green-600 font-bold mt-0.5 shrink-0">→</span>
+            <span><strong>Follow:</strong> ${esc(c.authoritative_source || '')} — ${esc(c.recommendation)}</span>
+          </div>`;
+        cList.appendChild(div);
+      });
+
+      // Requirement gaps
+      const gaps = ca.requirement_gaps || [];
+      const gList = document.getElementById('gaps-list');
+      gList.innerHTML = '';
+      document.getElementById('no-gaps').classList.toggle('hidden', gaps.length > 0);
+      gaps.forEach(g => {
+        const sev = g.severity || 'medium';
+        const div = document.createElement('div');
+        div.className = `flex items-start gap-2 p-3 border rounded-lg ${CSEV[sev] || CSEV.medium}`;
+        div.innerHTML = `
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full shrink-0 mt-0.5 ${CSEV_BADGE[sev]}">${sev.toUpperCase()}</span>
+          <div class="text-sm">
+            <p class="font-medium text-gray-800">${esc(g.requirement)}</p>
+            <p class="text-xs text-gray-500 mt-0.5">${esc(g.gap_description)} <span class="text-purple-500">— ${esc(g.source || '')}</span></p>
+          </div>`;
+        gList.appendChild(div);
+      });
+
+      // Source conflicts
+      const conflicts = ca.source_conflicts || [];
+      const scBlock = document.getElementById('src-conflicts-block');
+      scBlock.classList.toggle('hidden', conflicts.length === 0);
+      const scList = document.getElementById('src-conflicts-list');
+      scList.innerHTML = '';
+      conflicts.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'p-3 border border-orange-200 bg-orange-50 rounded-lg text-sm space-y-1';
+        div.innerHTML = `
+          <p class="font-medium text-gray-800">⚡ ${esc(c.description)}</p>
+          <p class="text-xs text-gray-500">${esc(c.source_a)} vs ${esc(c.source_b)} — <strong>Trust: ${esc(c.trust_source)}</strong></p>
+          <p class="text-xs text-gray-600">→ ${esc(c.resolution)}</p>`;
+        scList.appendChild(div);
+      });
+    }
+
+    // -- Risk card --
+    function renderRiskCard(data) {
+      const level = (data.risk_level || 'low').toLowerCase();
+      const score = data.risk_score || 0;
+      const barPct = Math.min(Math.round(score * 2.2), 100);
+
+      const card = document.getElementById('risk-card');
+      card.className = `card p-6 border-2 space-y-5 lvl-${level}`;
+
+      // Icon
+      const iconEl = document.getElementById('rc-icon');
+      if (level === 'low') {
+        iconEl.innerHTML = `<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+      } else {
+        iconEl.innerHTML = `<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+      }
+
+      document.getElementById('rc-badge').textContent = (data.risk_level || 'low').toUpperCase();
+      document.getElementById('rc-score').textContent = score;
+      document.getElementById('rc-bar').style.width = barPct + '%';
+      document.getElementById('rc-bar-label').textContent = `${barPct}/100`;
+      document.getElementById('rc-summary').textContent = data.status_summary || '';
+
+      // Signals
+      const FLAGS_META = {
+        ownership_confusion:  { icon: '🤔', label: 'Ambiguous Ownership' },
+        weak_commitment:      { icon: '⚠️', label: 'Weak Commitment Language' },
+        vague_deadline:       { icon: '📅', label: 'Vague Deadline' },
+        dependency_risk:      { icon: '🔗', label: 'Dependency Risk' },
+        scope_confusion:      { icon: '❓', label: 'Scope Confusion' },
+        repeated_uncertainty: { icon: '🔄', label: 'Repeated Uncertainty' },
+      };
+
+      const flags = data.communication_flags || [];
+      const signalsList = document.getElementById('signals-list');
+      signalsList.innerHTML = '';
+      document.getElementById('signals-section').style.display = flags.length ? '' : 'none';
+
+      flags.forEach(f => {
+        const meta = FLAGS_META[f.flag] || { icon: '⚑', label: f.flag };
+        // Use involved_members or evidence for chips
+        const chips = (f.involved_members && f.involved_members.length)
+          ? f.involved_members
+          : (f.evidence && f.evidence.length ? f.evidence : []);
+
+        const div = document.createElement('div');
+        div.innerHTML = `
+          <p class="text-sm font-semibold rc-text mb-1.5">
+            ${meta.icon} ${esc(meta.label)} (${chips.length || 1})
+          </p>
+          ${f.description ? `<p class="text-xs text-gray-600 mb-1.5">${esc(f.description)}</p>` : ''}
+          <div class="flex flex-wrap">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join('')}</div>`;
+        signalsList.appendChild(div);
+      });
+    }
+
+    // -- Tabs content --
+    function renderTabs(data) {
+      const tasks         = data.tasks || [];
+      const blockers      = data.blockers || [];
+      const decisions     = (data.decisions || []).filter(d => d.status === 'unresolved');
+      const clarifications = data.clarifications_needed || [];
+
+      document.getElementById('cnt-tasks').textContent     = tasks.length;
+      document.getElementById('cnt-blockers').textContent   = blockers.length;
+      document.getElementById('cnt-decisions').textContent  = decisions.length;
+      document.getElementById('cnt-clarify').textContent    = clarifications.length;
+
+      // Tasks table
+      const tbody = document.getElementById('tasks-body');
+      tbody.innerHTML = '';
+      document.getElementById('no-tasks').classList.toggle('hidden', tasks.length > 0);
+
+      tasks.forEach(t => {
+        const os = t.owner_status || 'unknown';
+        const oDot = `<span class="dot-${os} font-bold mr-1">●</span>`;
+        const oText = t.owner ? esc(t.owner) : `<span class="text-gray-400">Unassigned</span>`;
+
+        const ds = (t.deadline_status === 'confirmed' || t.deadline_status === 'known') ? 'confirmed' : 'unknown';
+        const dDot = `<span class="dot-${ds} font-bold mr-1">●</span>`;
+        const dText = t.deadline ? esc(t.deadline) : `<span class="text-gray-400">Not specified</span>`;
+
+        const st = (t.status || 'unclear').replace(' ', '_');
+        const stBadge = `<span class="sbadge sbadge-${st}">${(t.status||'unclear').replace('_',' ')}</span>`;
+
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-gray-50 last:border-0';
+        tr.innerHTML = `
+          <td class="py-3 pr-4 text-gray-800">${esc(t.task_name)}</td>
+          <td class="py-3 pr-4 text-sm whitespace-nowrap">${oDot}${oText}</td>
+          <td class="py-3 pr-4 text-sm whitespace-nowrap">${dDot}${dText}</td>
+          <td class="py-3">${stBadge}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      // Blockers
+      const blockersEl = document.getElementById('tab-blockers');
+      Array.from(blockersEl.querySelectorAll('.blocker-item')).forEach(el => el.remove());
+      document.getElementById('no-blockers').classList.toggle('hidden', blockers.length > 0);
+
+      const SEV = {
+        high: 'bg-red-100 text-red-700',
+        medium: 'bg-yellow-100 text-yellow-700',
+        low: 'bg-gray-100 text-gray-600',
+      };
+      blockers.forEach(b => {
+        const div = document.createElement('div');
+        div.className = 'blocker-item p-4 border border-gray-100 rounded-lg bg-gray-50 space-y-1';
+        div.innerHTML = `
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${SEV[b.severity]||SEV.low}">${(b.severity||'').toUpperCase()}</span>
+            <span class="text-sm font-medium text-gray-800">${esc(b.blocker)}</span>
+          </div>
+          ${b.blocking_task ? `<p class="text-xs text-gray-500">Blocking: ${esc(b.blocking_task)}</p>` : ''}
+          <p class="text-xs ${b.responsible_party ? 'text-purple-600' : 'text-red-500'}">
+            ${b.responsible_party ? 'Owner: ' + esc(b.responsible_party) : 'No owner assigned'}
+          </p>`;
+        blockersEl.appendChild(div);
+      });
+
+      // Decisions
+      const decisionsEl = document.getElementById('tab-decisions');
+      Array.from(decisionsEl.querySelectorAll('.decision-item')).forEach(el => el.remove());
+      document.getElementById('no-decisions').classList.toggle('hidden', decisions.length > 0);
+
+      decisions.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'decision-item flex items-start gap-2 p-3 border border-yellow-100 bg-yellow-50 rounded-lg';
+        div.innerHTML = `<span class="text-yellow-500 mt-0.5 shrink-0 font-bold">?</span>
+          <span class="text-sm text-gray-800">${esc(d.decision || d.issue || '')}</span>`;
+        decisionsEl.appendChild(div);
+      });
+
+      // Clarifications
+      const clarifyEl = document.getElementById('tab-clarify');
+      Array.from(clarifyEl.querySelectorAll('.clarify-item')).forEach(el => el.remove());
+      document.getElementById('no-clarify').classList.toggle('hidden', clarifications.length > 0);
+
+      clarifications.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'clarify-item flex items-start gap-2 p-3 border border-gray-100 bg-gray-50 rounded-lg';
+        div.innerHTML = `<span class="text-purple-400 mt-0.5 shrink-0 font-bold">›</span>
+          <span class="text-sm text-gray-800">${esc(c)}</span>`;
+        clarifyEl.appendChild(div);
+      });
+    }
+
+    // -- Next actions --
+    function renderActions(data) {
+      const el = document.getElementById('next-actions');
+      el.innerHTML = '';
+      (data.next_actions || []).slice(0, 3).forEach((a, i) => {
+        const div = document.createElement('div');
+        div.className = 'flex items-start gap-3 p-4 border border-gray-200 rounded-xl bg-white';
+        div.innerHTML = `
+          <div class="action-num">${i + 1}</div>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-gray-800">${esc(a.action)}</p>
+            ${(a.owner || a.deadline) ? `
+              <p class="text-xs text-gray-400 mt-0.5">
+                ${a.owner ? `<span class="text-purple-600">${esc(a.owner)}</span>` : ''}
+                ${a.owner && a.deadline ? ' · ' : ''}
+                ${a.deadline ? `by ${esc(a.deadline)}` : ''}
+              </p>` : ''}
+          </div>`;
+        el.appendChild(div);
+      });
+    }
+
+    // -- Follow-up --
+    function renderFollowup(data) {
+      document.getElementById('followup-message').textContent = data.followup_message || '';
+      const isDeadlocked = (data.risk_level || '').toLowerCase() === 'deadlocked';
+      document.getElementById('urgent-box').style.display = isDeadlocked ? 'flex' : 'none';
+    }
+
+    // -------------------------------------------------------------------------
+    // Copy
+    // -------------------------------------------------------------------------
+    function copyMessage() {
+      const text = document.getElementById('followup-message').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const c = document.getElementById('copy-confirm');
+        c.classList.remove('hidden');
+        setTimeout(() => c.classList.add('hidden'), 2000);
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // Util
+    // -------------------------------------------------------------------------
+    function esc(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

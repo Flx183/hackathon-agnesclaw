@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+openai
+python-dotenv
+python-telegram-bot>=20.0
+python-multipart
+pdfplumber
+python-docx
+python-pptx
