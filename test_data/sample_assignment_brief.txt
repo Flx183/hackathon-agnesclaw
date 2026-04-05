@@ -1,0 +1,53 @@
+BUS3012 SERVICE MANAGEMENT
+GROUP ASSIGNMENT BRIEF — SEMESTER 2, AY2025/2026
+
+OVERVIEW
+This group assignment requires you to conduct a service quality audit of a real-world service organisation using the SERVQUAL framework. Your team must apply at least THREE of the five SERVQUAL dimensions (Tangibility, Reliability, Responsiveness, Assurance, Empathy) in your analysis.
+
+DELIVERABLES
+1. Written Report (60%)
+   - Minimum 4,000 words, maximum 5,500 words (excluding references and appendices)
+   - Must follow APA 7th Edition citation format
+   - Font: Times New Roman 12pt, 1.5 line spacing, 2.5cm margins
+   - Must use the official report template (available on LumiNUS under "Assignment Resources")
+   - Sections required:
+     a. Introduction and Problem Statement
+     b. Literature Review (minimum 10 peer-reviewed sources, published 2015–2025)
+     c. Methodology (sampling method, survey instrument design, data collection procedure)
+     d. Findings and Discussion (statistical analysis required — SPSS output must be included as appendix)
+     e. Conclusion and Recommendations
+     f. Peer Evaluation (each member rates all others on contribution, included as separate appendix)
+
+2. Presentation (40%)
+   - 12–15 minute group presentation during Week 13 tutorial slot
+   - Slides must be submitted to LumiNUS 24 hours before presentation
+   - All members must speak for a roughly equal amount of time
+
+SUBMISSION DEADLINE
+Written Report: Sunday 18 April 2026, 11:59 PM (Singapore Time) via LumiNUS
+Presentation slides: Friday 16 April 2026, 11:59 PM
+
+ETHICAL REQUIREMENTS
+All primary data collection involving human participants REQUIRES ethics approval.
+Submit the IRB Consent and Data Collection Approval Form (Form BUS-IRB-01) at least 7 days before data collection begins.
+Failure to obtain ethics approval before data collection will result in a ZERO for the methodology component.
+
+SAMPLE SIZE
+Minimum 30 valid survey responses required. Surveys with less than 30 valid responses will receive a 20% penalty on the Findings section.
+
+IMPORTANT NOTES
+- Company selection must be confirmed with your tutor by Week 7 (Friday 28 March 2026). Late confirmations will not be accepted.
+- Groups must conduct their own primary data collection. Secondary data alone is not acceptable.
+- Plagiarism threshold: 20% similarity score maximum (Turnitin). Submissions over threshold will not be marked.
+- Late submissions: 10 marks deducted per day.
+
+MARKING RUBRIC SUMMARY
+- Introduction / Problem Statement: 10%
+- Literature Review: 20%
+- Methodology: 15%
+- Findings and Discussion: 25%
+- Conclusion and Recommendations: 10%
+- Peer Evaluation: 5%
+- Overall Presentation Quality (report): 15%
+
+Enquiries: email your tutorial group's tutor or post on the LumiNUS forum.

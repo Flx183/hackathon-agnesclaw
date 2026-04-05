@@ -269,31 +269,14 @@
       <!-- Risk Assessment Card -->
       <div id="risk-card" class="card p-6 border-2 space-y-5">
 
-        <div class="flex items-start justify-between">
-          <div class="flex items-start gap-3">
-            <div id="rc-icon" class="rc-icon mt-0.5"></div>
-            <div>
-              <h3 class="font-bold text-lg rc-text">Risk Assessment</h3>
-              <div class="flex items-center gap-2 mt-1">
-                <span class="text-sm text-gray-500">Level:</span>
-                <span id="rc-badge" class="rc-badge text-xs font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wide"></span>
-              </div>
+        <div class="flex items-start gap-3">
+          <div id="rc-icon" class="rc-icon mt-0.5"></div>
+          <div>
+            <h3 class="font-bold text-lg rc-text">Risk Assessment</h3>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-sm text-gray-500">Level:</span>
+              <span id="rc-badge" class="rc-badge text-xs font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wide"></span>
             </div>
-          </div>
-          <div class="text-right">
-            <div id="rc-score" class="rc-score text-4xl font-bold"></div>
-            <div class="text-xs text-gray-400 mt-0.5">Risk Score</div>
-          </div>
-        </div>
-
-        <!-- Health bar -->
-        <div>
-          <div class="flex justify-between text-sm mb-1.5">
-            <span class="font-medium text-gray-700">Coordination Health</span>
-            <span id="rc-bar-label" class="text-gray-500 text-xs"></span>
-          </div>
-          <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
-            <div id="rc-bar" class="rc-bar h-full rounded-full transition-all duration-700" style="width:0%"></div>
           </div>
         </div>
 
@@ -818,8 +801,6 @@ Dion: what are we even using for final angle`,
     // -- Risk card --
     function renderRiskCard(data) {
       const level = (data.risk_level || 'low').toLowerCase();
-      const score = data.risk_score || 0;
-      const barPct = Math.min(Math.round(score * 2.2), 100);
 
       const card = document.getElementById('risk-card');
       card.className = `card p-6 border-2 space-y-5 lvl-${level}`;
@@ -837,9 +818,6 @@ Dion: what are we even using for final angle`,
       }
 
       document.getElementById('rc-badge').textContent = (data.risk_level || 'low').toUpperCase();
-      document.getElementById('rc-score').textContent = score;
-      document.getElementById('rc-bar').style.width = barPct + '%';
-      document.getElementById('rc-bar-label').textContent = `${barPct}/100`;
       document.getElementById('rc-summary').textContent = data.status_summary || '';
 
       // Signals
